@@ -4,10 +4,54 @@
 // Get a free hosted Postgres database in seconds: `npx create-db`
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String    @id @default(uuid())
+  email     String    @unique
+  password  String
+  role      Role      @default(USER)
+  accounts  Account[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Account {
+  id          String        @id @default(uuid())
+  userId      String
+  balance     Decimal       @default(0)
+  user        User          @relation(fields: [userId], references: [id])
+  transactions Transaction[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([userId])
+}
+
+model Transaction {
+  id        String           @id @default(uuid())
+  type      TransactionType
+  amount    Decimal
+  accountId String
+  account   Account          @relation(fields: [accountId], references: [id])
+  createdAt DateTime         @default(now())
+
+  @@index([accountId])
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAW
+  TRANSFER
 }
