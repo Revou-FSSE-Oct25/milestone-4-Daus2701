@@ -12,7 +12,8 @@ import { PrismaModule } from '../prisma/prisma.module';
       signOptions: { expiresIn: '1d' },
     }),
   ],
-  controllers: [AuthController],   // ✅ ADD THIS
-  providers: [AuthService],        // ✅ ADD THIS
+  controllers: [AuthController],   
+  providers: [AuthService],        
+  exports: [JwtModule],
 })
 export class AuthModule {}
