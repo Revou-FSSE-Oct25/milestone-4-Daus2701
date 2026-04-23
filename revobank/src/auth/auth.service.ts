@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
@@ -82,56 +83,67 @@ export class AuthService {
     }
 
     async refresh(refreshToken: string) {
-  try {
-    const payload = await this.jwtService.verifyAsync(refreshToken);
+        try {
+            const payload = await this.jwtService.verifyAsync(refreshToken);
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: payload.sub },
-    });
+            const user = await this.prisma.user.findUnique({
+                where: { id: payload.sub },
+            });
 
-    if (!user || !user.refreshToken) {
-      throw new Error('Access Denied');
+            if (!user || !user.refreshToken) {
+            throw new UnauthorizedException('Access Denied');
+            }
+
+            const isValid = await bcrypt.compare(
+                refreshToken,
+                user.refreshToken,
+            );
+
+            if (!isValid) {
+                throw new UnauthorizedException('Invalid refresh token');
+            }
+
+    
+            const newPayload = {
+                sub: user.id,
+                email: user.email,
+                role: user.role,
+            };
+
+            const newAccessToken = this.jwtService.sign(newPayload, {
+                expiresIn: '15m',
+            });
+
+            const newRefreshToken = this.jwtService.sign(newPayload, {
+                expiresIn: '7d',
+            });
+
+            const hashedRefresh = await bcrypt.hash(newRefreshToken, 10);
+
+            await this.prisma.user.update({
+                where: { id: user.id },
+                data: {
+                    refreshToken: hashedRefresh,
+                },
+            });
+
+            return {
+                accessToken: newAccessToken,
+                refreshToken: newRefreshToken,
+            };
+            } catch (err) {
+                throw new UnauthorizedException('Invalid refresh token');
+            }
+        }
+
+    async logout(userId: string) {
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: {
+            refreshToken: null,
+            },
+        });
+
+        return { message: 'Logged out successfully' };
     }
-
-    const isValid = await bcrypt.compare(
-      refreshToken,
-      user.refreshToken
-    );
-
-    if (!isValid) {
-      throw new Error('Invalid refresh token');
-    }
-
-    // 🔁 rotate tokens
-    const newPayload = {
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-    };
-
-    const newAccessToken = this.jwtService.sign(newPayload, {
-      expiresIn: '15m',
-    });
-
-    const newRefreshToken = this.jwtService.sign(newPayload, {
-      expiresIn: '7d',
-    });
-
-    const hashedRefresh = await bcrypt.hash(newRefreshToken, 10);
-
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        refreshToken: hashedRefresh,
-      },
-    });
-
-    return {
-      accessToken: newAccessToken,
-      refreshToken: newRefreshToken,
-    };
-  } catch (err) {
-    throw new Error('Invalid refresh token');
-  }
-}
 }
