@@ -3,6 +3,7 @@ import { UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
+import { Role } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
@@ -145,5 +146,12 @@ export class AuthService {
         });
 
         return { message: 'Logged out successfully' };
+    }
+
+    async updateRole(userId: string, role: Role) {
+        return this.prisma.user.update({
+            where: { id: userId },
+            data: { role },
+        });
     }
 }
