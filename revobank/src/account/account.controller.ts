@@ -1,12 +1,15 @@
-import { Controller, Post, Body, Get } from '@nestjs/common';
+import { Body, Controller, Get, Post } from '@nestjs/common';
 import { AccountService } from './account.service';
+import { CreateAccountDto } from './dto/create-account.dto';
+import { DepositDto } from './dto/deposit.dto';
+import { TransferDto } from './dto/transfer.dto';
 
 @Controller('accounts')
 export class AccountController {
-  constructor(private accountService: AccountService) {}
+  constructor(private readonly accountService: AccountService) {}
 
-  @Post('create')
-  create(@Body() body: { userId: string }) {
+  @Post()
+  create(@Body() body: CreateAccountDto) {
     return this.accountService.create(body.userId);
   }
 
@@ -16,15 +19,12 @@ export class AccountController {
   }
 
   @Post('deposit')
-  deposit(@Body() body: { accountId: string; amount: number }) {
+  deposit(@Body() body: DepositDto) {
     return this.accountService.deposit(body.accountId, body.amount);
   }
 
   @Post('transfer')
-  transfer(
-    @Body()
-    body: { fromId: string; toId: string; amount: number },
-  ) {
+  transfer(@Body() body: TransferDto) {
     return this.accountService.transfer(
       body.fromId,
       body.toId,

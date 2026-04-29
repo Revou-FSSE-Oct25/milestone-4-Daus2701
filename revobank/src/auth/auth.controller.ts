@@ -4,18 +4,20 @@ import { JwtGuard } from './jwt/jwt.guard';
 import { Roles } from './roles.decorator';
 import { RolesGuard } from './roles.guard';
 import { Role } from '@prisma/client';
+import { RegisterDto } from './dto/register.dto';
+import { LoginDto } from './dto/login.dto';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
     @Post('register')
-    register(@Body() body: any) {
+    register(@Body() body: RegisterDto) {
     return this.authService.register(body);
     }
 
     @Post('login')
-    login(@Body() body: any) {
+    login(@Body() body: LoginDto) {
         return this.authService.login(body);
     }
 
