@@ -1,6 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { TransactionStatus, TransactionType } from '@prisma/client';
 
 @Injectable()
 export class TransactionService {
@@ -11,7 +10,7 @@ export class TransactionService {
       where: { id: accountId },
     });
 
-    if (!account) throw new Error('Account not found');
+    if (!account) throw new NotFoundException('Account not found');
 
     const newBalance = Number(account.balance) + amount;
 
@@ -22,8 +21,8 @@ export class TransactionService {
 
     return this.prisma.transaction.create({
       data: {
-        type: TransactionType.DEPOSIT,
-        status: TransactionStatus.COMPLETED,
+        type: 'DEPOSIT',
+        status: 'COMPLETED',
         amount,
         balanceBefore: account.balance,
         balanceAfter: newBalance,
@@ -32,47 +31,16 @@ export class TransactionService {
     });
   }
 
-  async transfer(fromId: string, toId: string, amount: number) {
-    const from = await this.prisma.account.findUnique({ where: { id: fromId } });
-    const to = await this.prisma.account.findUnique({ where: { id: toId } });
-
-    if (!from || !to) throw new Error('Account not found');
-    if (Number(from.balance) < amount) throw new Error('Insufficient balance');
-
-    const newFrom = Number(from.balance) - amount;
-    const newTo = Number(to.balance) + amount;
-
-    return this.prisma.$transaction([
-      this.prisma.account.update({
-        where: { id: fromId },
-        data: { balance: newFrom },
-      }),
-      this.prisma.account.update({
-        where: { id: toId },
-        data: { balance: newTo },
-      }),
-      this.prisma.transaction.create({
-        data: {
-          type: TransactionType.TRANSFER,
-          status: TransactionStatus.COMPLETED,
-          amount,
-          balanceBefore: from.balance,
-          balanceAfter: newFrom,
-          fromAccountId: fromId,
-          toAccountId: toId,
-        },
-      }),
-    ]);
-  }
-
   async withdraw(accountId: string, amount: number) {
     const account = await this.prisma.account.findUnique({
       where: { id: accountId },
     });
 
-    if (!account) throw new Error('Account not found');
-    if (Number(account.balance) < amount)
+    if (!account) throw new NotFoundException('Account not found');
+
+    if (Number(account.balance) < amount) {
       throw new Error('Insufficient balance');
+    }
 
     const newBalance = Number(account.balance) - amount;
 
@@ -83,12 +51,49 @@ export class TransactionService {
 
     return this.prisma.transaction.create({
       data: {
-        type: TransactionType.WITHDRAWAL,
-        status: TransactionStatus.COMPLETED,
+        type: 'WITHDRAWAL',
+        status: 'COMPLETED',
         amount,
         balanceBefore: account.balance,
         balanceAfter: newBalance,
         fromAccountId: accountId,
+      },
+    });
+  }
+
+  async transfer(fromId: string, toId: string, amount: number) {
+    const from = await this.prisma.account.findUnique({ where: { id: fromId } });
+    const to = await this.prisma.account.findUnique({ where: { id: toId } });
+
+    if (!from || !to) throw new NotFoundException('Account not found');
+
+    if (Number(from.balance) < amount) {
+      throw new Error('Insufficient balance');
+    }
+
+    const newFrom = Number(from.balance) - amount;
+    const newTo = Number(to.balance) + amount;
+
+    await this.prisma.$transaction([
+      this.prisma.account.update({
+        where: { id: fromId },
+        data: { balance: newFrom },
+      }),
+      this.prisma.account.update({
+        where: { id: toId },
+        data: { balance: newTo },
+      }),
+    ]);
+
+    return this.prisma.transaction.create({
+      data: {
+        type: 'TRANSFER',
+        status: 'COMPLETED',
+        amount,
+        balanceBefore: from.balance,
+        balanceAfter: newFrom,
+        fromAccountId: fromId,
+        toAccountId: toId,
       },
     });
   }
@@ -101,12 +106,28 @@ export class TransactionService {
           { toAccount: { userId } },
         ],
       },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
-  async findOne(id: string) {
-    return this.prisma.transaction.findUnique({
+  async findOne(id: string, userId: string) {
+    const transaction = await this.prisma.transaction.findUnique({
       where: { id },
+      include: {
+        fromAccount: true,
+        toAccount: true,
+      },
     });
+
+    if (!transaction) throw new NotFoundException('Transaction not found');
+
+    if (
+      transaction.fromAccount?.userId !== userId &&
+      transaction.toAccount?.userId !== userId
+    ) {
+      throw new NotFoundException('Transaction not found');
+    }
+
+    return transaction;
   }
 }
